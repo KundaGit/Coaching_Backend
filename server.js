@@ -1,126 +1,3 @@
-// // ===============================
-// // IMPORTS
-// // ===============================
-// require('dotenv').config();
-// const express = require('express');
-// const mysql = require('mysql2');
-// const cors = require('cors');
-// const axios = require('axios');
-// const app = express();
-// app.use(cors());
-// app.use(express.json());
-
-// // ===============================
-// // MYSQL CONNECTION
-// // ===============================
-// const db = mysql.createConnection({
-//   host: 'localhost',
-//   user: 'root',
-//   password: 'Anitak@123',
-//   database: 'otp_auth'
-// });
-
-// // Db connection test
-// db.connect((err) => {
-//   if (err) {
-//     console.error("DB connection failed:", err);
-//     return;
-//   }
-//   console.log("MySQL Connected");
-// });
-
-// // ===============================
-// // SEND OTP API
-// // ===============================
-
-
-// app.post('/api/auth/send-otp', (req, res) => {
-//   const { mobile } = req.body;
-
-//   if (!mobile)
-//     return res.status(400).json({ message: 'Mobile required' });
-
-//   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-//   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-//   db.query('DELETE FROM otps WHERE mobile = ?', [mobile]);
-
-//   db.query(
-//     'INSERT INTO otps (mobile, otp, expires_at) VALUES (?, ?, ?)',
-//     [mobile, otp, expiresAt],
-//     async () => {
-//       await sendOtpSMS(mobile, otp);
-//         console.log('OTP:', otp); // 🔥 SMS later
-//       res.json({ success: true, message: 'OTP sent' });
-//     }
-//   );
-// });
-
-// // ===============================
-// // VERIFY OTP API
-// // ===============================
-// app.post('/api/auth/verify-otp', (req, res) => {
-//   const { mobile, otp } = req.body;
-
-//   db.query(
-//     'SELECT * FROM otps WHERE mobile = ? AND otp = ?',
-//     [mobile, otp],
-//     (err, results) => {
-//       if (results.length === 0)
-//         return res.status(400).json({ message: 'Invalid OTP' });
-
-//       const record = results[0];
-
-//       if (new Date(record.expires_at) < new Date())
-//         return res.status(400).json({ message: 'OTP expired' });
-
-//       // delete otp after success
-//       db.query('DELETE FROM otps WHERE mobile = ?', [mobile]);
-
-//       res.json({ success: true, message: 'Login successful' });
-//     }
-//   );
-// });
-
-// async function sendOtpSMS(mobile, otp) {
-
-//   // 🔍 DEBUG CHECK (YAHI ADD KARNA HAI)
-//   console.log('AUTHKEY:', process.env.MSG91_AUTH_KEY ? 'OK' : 'MISSING');
-//   console.log('TEMPLATE:', process.env.MSG91_TEMPLATE_ID ? 'OK' : 'MISSING')
-//   if (process.env.USE_SMS !== 'true') {
-//     console.log('📴 SMS OFF | OTP:', otp);
-//     return;
-//   }
-
-//   try {
-//     await axios.post(
-//       'https://control.msg91.com/api/v5/otp',
-//       {
-//         template_id: process.env.MSG91_TEMPLATE_ID,
-//         mobile: '91' + mobile,
-//         otp: otp
-//       },
-//       {
-//         headers: {
-//           authkey: process.env.MSG91_AUTH_KEY,
-//           'Content-Type': 'application/json'
-//         }
-//       }
-//     );
-
-//     console.log('📱 OTP sent via MSG91 to', mobile);
-//   } catch (err) {
-//     console.error(
-//       '❌ MSG91 error:',
-//       err.response?.data || err.message
-//     );
-//   }
-// }
-// app.listen(5000, () => {
-//   console.log('🚀 Server running on http://localhost:5000');
-// });
-
-
 
 // ===============================
 // IMPORTS
@@ -130,6 +7,7 @@ const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 app.use(cors());
@@ -318,7 +196,11 @@ app.post('/api/payment/create-order', async (req, res) => {
   const { amount, email } = req.body;
 
   try {
-     console.log('BODY:', req.body);
+     
+    console.log("BODY:", req.body);
+    console.log("KEY_ID:", process.env.RAZORPAY_KEY_ID);
+    console.log("KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET);
+
     const order = await razorpay.orders.create({
       amount: amount * 100, // ₹ → paise
       currency: 'INR',
@@ -368,6 +250,81 @@ app.post('/api/payment/verify', async (req, res) => {
   );
 
   res.json({ success: true });
+});
+
+// ===============================
+// DOWNLOAD PAYMENT INVOICE
+// ===============================
+
+app.get('/api/payment/invoice/:paymentId', async (req, res) => {
+
+  const paymentId = req.params.paymentId;
+
+  const [rows] = await db.promise().query(
+    "SELECT * FROM payments WHERE razorpay_payment_id=?",
+    [paymentId]
+  );
+
+  const payment = rows[0];
+
+  const doc = new PDFDocument({ margin: 50 });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename=invoice.pdf');
+
+  doc.pipe(res);
+
+  // Header
+  doc
+    .fontSize(22)
+    .fillColor('#0b5ed7')
+    .text('Kundan Institute App', { align: 'center' });
+
+  doc.moveDown(0.5);
+
+  doc
+    .fontSize(16)
+    .fillColor('black')
+    .text('INVOICE', { align: 'center' });
+
+  doc.moveDown(2);
+
+  // Customer Info
+  doc.fontSize(12).text(`Email: ${payment.email}`);
+  doc.text(`Order ID: ${payment.razorpay_order_id}`);
+  doc.text(`Payment ID: ${payment.razorpay_payment_id}`);
+  doc.text(`Date: ${payment.created_at}`);
+
+  doc.moveDown(2);
+
+  // Table header
+  doc.fontSize(14).text('Course', 50);
+  doc.text('Amount', 400);
+
+  doc.moveDown(0.5);
+  doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+
+  doc.moveDown(0.5);
+
+  // Table data
+  doc.fontSize(12).text('Class 10 Maths', 50);
+  doc.text(`RS${payment.amount}`, 400);
+
+  doc.moveDown(2);
+
+  doc.fontSize(14).fillColor('green').text('Status: PAID');
+
+  doc.moveDown(2);
+
+  doc
+    .fillColor('black')
+    .fontSize(10)
+    .text('Thank you for purchasing from Kundan Institute App.', {
+      align: 'center'
+    });
+
+  doc.end();
+
 });
 
 // ===============================
