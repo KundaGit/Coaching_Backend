@@ -39,18 +39,13 @@ db.connect((err) => {
 // EMAIL TRANSPORTER
 // ===============================
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: "smtp-relay.brevo.com",
   port: 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 20000,
-  greetingTimeout: 20000
+    user: process.env.BREVO_USER,
+    pass: process.env.BREVO_PASS
+  }
 });
 // ===============================
 // SEND OTP (EMAIL)
