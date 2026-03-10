@@ -52,6 +52,9 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.BREVO_USER,
     pass: process.env.BREVO_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 // ===============================
@@ -133,7 +136,7 @@ app.post('/api/auth/verify-email-otp', async (req, res) => {
 // ===============================
 async function sendOtpEmail(email, otp) {
   await transporter.sendMail({
-    from: `"Institute App" <${process.env.EMAIL_USER}>`,
+    from: `"Institute App" <${process.env.BREVO_USER}>`,
     to: email,
     subject: 'OTP for Institute App Login',
     html: `
