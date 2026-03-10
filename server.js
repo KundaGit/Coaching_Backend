@@ -10,7 +10,14 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://coaching-web-xi.vercel.app",
+    "http://localhost:4200"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 app.use(express.json());
 
 // ===============================
