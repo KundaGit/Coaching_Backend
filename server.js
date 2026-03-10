@@ -49,9 +49,9 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false
   },
-  family: 4 // force IPv4
+  connectionTimeout: 20000,
+  greetingTimeout: 20000
 });
-
 // ===============================
 // SEND OTP (EMAIL)
 // ===============================
