@@ -6,11 +6,18 @@ require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 const PDFDocument = require('pdfkit');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://coaching-web-xi.vercel.app",
+    "http://localhost:4200"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 app.use(express.json());
 
 // ===============================
@@ -22,7 +29,7 @@ const db = mysql.createConnection({
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: 38847,
-  ssl: {
+   ssl: {
     rejectUnauthorized: false
   }
 });
@@ -38,13 +45,6 @@ db.connect((err) => {
 // ===============================
 // EMAIL TRANSPORTER
 // ===============================
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
 
 // ===============================
 // SEND OTP (EMAIL)
@@ -123,68 +123,38 @@ app.post('/api/auth/verify-email-otp', async (req, res) => {
 // ===============================
 // SEND EMAIL FUNCTION
 // ===============================
+
 async function sendOtpEmail(email, otp) {
-  await transporter.sendMail({
-    from: `"Institute App" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'OTP for Institute App Login',
-    html: `
-      <div style="font-family: Arial, sans-serif; background:#f4f6f8; padding:20px">
-        <div style="max-width:600px; margin:auto; background:#ffffff; border:1px solid #ddd">
 
-          <!-- HEADER -->
-          <div style="background:#0b5ed7; color:#fff; padding:15px; text-align:center">
-            <h2 style="margin:0">Institute App</h2>
-          </div>
+  await axios.post(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      sender: {
+        name: "Institute App",
+        email: process.env.BREVO_USER
+      },
 
-          <!-- BODY -->
-          <div style="padding:20px; color:#000">
-            <p>Dear <b>Candidate</b>,</p>
+      to: [
+        { email: email }
+      ],
 
-            <p>
-              You have successfully generated OTP for <b>Institute App</b>.
-            </p>
+      subject: "OTP for Institute App Login",
 
-            <p>
-              OTP is valid for <b>10 minutes</b>.
-            </p>
+      htmlContent: `
+        <h2>Your OTP is: ${otp}</h2>
+        <p>This OTP is valid for 10 minutes.</p>
+      `
+    },
 
-            <p>
-              Do not share the OTP with anyone to avoid misuse of your account.
-            </p>
+    {
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "Content-Type": "application/json"
+      }
+    }
+  );
 
-            <p style="font-size:18px; margin:20px 0">
-              <b>The OTP is: 
-                <span style="letter-spacing:2px; font-size:22px">${otp}</span>
-              </b>
-            </p>
-
-            <p>
-              If you have not done this activity, please contact the
-              <b>"Support Team"</b> immediately.
-            </p>
-
-            <br />
-
-            <p>
-              Thank You,<br />
-              <b>Institute App Team</b>
-            </p>
-          </div>
-
-          <!-- FOOTER -->
-          <div style="background:#f1f1f1; padding:10px; text-align:center; font-size:12px">
-            <p style="margin:0">
-              Note: This is a system generated email. Please do not reply.
-            </p>
-          </div>
-
-        </div>
-      </div>
-    `
-  });
 }
-
 // ===============================
 // RAZORPAY ORDER CREATE
 // ===============================
